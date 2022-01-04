@@ -22,12 +22,15 @@ import com.cburch.logisim.instance.InstancePainter;
 import com.cburch.logisim.instance.InstanceState;
 import com.cburch.logisim.instance.Port;
 import com.cburch.logisim.instance.StdAttr;
-import com.cburch.logisim.prefs.AppPreferences;
+import com.cburch.logisim.tools.MessageBox;
 import com.cburch.logisim.tools.key.BitWidthConfigurator;
 import com.cburch.logisim.util.GraphicsUtil;
+import com.cburch.logisim.util.JDialogOk;
 import com.cburch.logisim.util.StringUtil;
 
 import java.awt.*;
+import java.io.RandomAccessFile;
+import java.nio.file.*;
 
 public class MyFileMemory extends InstanceFactory {
   /**
@@ -52,10 +55,9 @@ public class MyFileMemory extends InstanceFactory {
 
     @Override
     public Value getLogValue(InstanceState state, Object option) {
-      var dataWidth = BitWidth.create(8);
       final var data = (StateData) state.getData();
-      if (data == null) return Value.createKnown(dataWidth, 0);
-      return Value.createKnown(dataWidth, data.fileValues[2]);
+      if (data == null) return Value.createKnown(8, 0);
+      return Value.createKnown(8, data.fileValues[2]);
     }
 
     @Override
@@ -66,49 +68,78 @@ public class MyFileMemory extends InstanceFactory {
 
   private static class StateData extends ClockState implements InstanceData {
 
-    private char[] fileValues = new char[] {0, 0, 0, 0, 0};
-    private int currentAddress = 0;
+    private char[] fileValues;
 
-    private final char[] dummyFile = new char[] {
-      0x9e, 0xdd, 0x07, 0x09, 0x5e, 0xc5, 0xb9, 0x80, 0x10, 0x22, 0x02, 0x8c, 0xcb, 0xa4, 0xdb, 0x74,
-      0xbe, 0x7e, 0x7d, 0xd6, 0x96, 0x4b, 0xf5, 0xad, 0xc6, 0x7b, 0x2d, 0x87, 0xdd, 0x7b, 0xff, 0x96,
-      0x98, 0x8a, 0xf4, 0xbd, 0x1c, 0xce, 0xd6, 0x5e, 0xa8, 0xa0, 0x0c, 0xe1, 0x66, 0xd8, 0xa5, 0xc9,
-      0x29, 0x6b, 0x40, 0x97, 0x48, 0xda, 0xe2, 0xf1, 0xf8, 0x8c, 0xe2, 0xda, 0xa8, 0x9a, 0x21, 0x1e,
-      0xa2, 0x75, 0xd5, 0x71, 0x9f, 0xd1, 0x76, 0x70, 0x32, 0x92, 0x2f, 0x07, 0x8b, 0x90, 0xcb, 0x6d,
-      0xed, 0xcb, 0x67, 0xa8, 0x56, 0x27, 0x36, 0x2c, 0xd7, 0x82, 0x63, 0x62, 0xc0, 0x4c, 0x5c, 0x4d,
-      0x3c, 0x74, 0x41, 0x6f, 0x5f, 0x06, 0x66, 0x54, 0x7f, 0xf6, 0x7d, 0x20, 0x5e, 0xe3, 0x31, 0x96,
-      0xed, 0x10, 0x3a, 0x98, 0x3c, 0x18, 0xea, 0x31, 0x18, 0xb6, 0x91, 0x23, 0xf3, 0xb6, 0x1a, 0xb1,
-      0xe5, 0x0e, 0x56, 0x91, 0xf1, 0x8b, 0xb3, 0xfa, 0x70, 0x66, 0x54, 0x14, 0x0b, 0x51, 0xc8, 0x74,
-      0x9f, 0x28, 0xb5, 0xe0, 0x93, 0x76, 0x63, 0x77, 0xb1, 0xf9, 0xbc, 0xf3, 0x70, 0x5e, 0xba, 0x23,
-      0x19, 0x79, 0x47, 0x3f, 0xed, 0xb2, 0xa2, 0xa2, 0xd2, 0xed, 0xf1, 0xde, 0xfe, 0x15, 0x47, 0x3e,
-      0x3f, 0x81, 0x8e, 0xe7, 0x5b, 0x02, 0x71, 0x16, 0x7c, 0x81, 0xcc, 0x95, 0x35, 0xaa, 0x9c, 0xc8,
-      0x5f, 0xb0, 0xa5, 0x04, 0xc3, 0x1f, 0x6a, 0x2f, 0xc5, 0x08, 0x3e, 0xbb, 0xd1, 0x56, 0x6f, 0x1a,
-      0x58, 0x4b, 0xc2, 0x07, 0x8b, 0x13, 0x5d, 0x60, 0x24, 0xb9, 0xa5, 0x59, 0x7e, 0x54, 0x9d, 0x02,
-      0x0a, 0x59, 0xf0, 0xd1, 0x80, 0x24, 0x22, 0xdd, 0x32, 0x0e, 0x89, 0x6d, 0xe5, 0xc9, 0x67, 0x68,
-      0x04, 0xe4, 0xfb, 0xef, 0x18, 0xc3, 0xc9, 0x83, 0xdd, 0x2a, 0xfa, 0xe1, 0x27, 0x5c, 0xf8, 0xa5
-    };
-    private final int dummyFileLength = dummyFile.length;
+    private int currentAddress;
+    private RandomAccessFile currentFile;
+    public String currentFilePathString;
+    public Path currentFilePath;
+    public String currentFileName;
+    private int currentFileLength;
 
-    public StateData(Object seed) {
-      updateAddress(0);
+    public StateData(String filepath, int offset) {
+      reset(filepath, offset);
     }
 
     public boolean offsetValid(int offset) {
-      if (offset < -2 || offset > 2) return false;
-      if (currentAddress + offset < 0) return false;
-      if (currentAddress + offset >= dummyFileLength) return false;
-      return true;
+      int temp = currentAddress + offset;
+      return (temp >= 0 && temp < currentFileLength);
+    }
+
+    public void reset(String filepath, int offset) {
+      // reset member variables
+      fileValues = new char[] {0, 0, 0, 0, 0};
+      currentAddress = 0;
+      currentFileLength = 0;
+
+      // try to open provided file
+      try {
+        currentFilePathString = filepath;
+        currentFilePath = Paths.get(currentFilePathString);
+        currentFileName = currentFilePath.getFileName().toString();
+        reloadFile();
+        // reset pointer to the provided offset
+        updateAddress(offset);
+      }
+      catch (Exception e) {
+        currentFilePath = null;
+        currentFileName = "filename error";
+      }
+    }
+
+    public boolean reloadFile() {
+      try {
+        currentFile = new RandomAccessFile(currentFilePath.toString(), "r");
+        currentFileLength = (int) currentFile.length();
+        return true;
+      }
+      catch (Exception e) {
+        currentFile = null;
+        return false;
+      }
     }
 
     public void updateAddress(int new_address) {
       currentAddress = new_address;
-      if (currentAddress >= dummyFileLength) currentAddress = dummyFileLength - 1;
+      if (currentAddress >= currentFileLength) currentAddress = currentFileLength - 1;
+      if (currentAddress < 0) currentAddress = 0;
 
-      if (offsetValid(-2)) fileValues[0] = dummyFile[currentAddress - 2];
-      if (offsetValid(-1)) fileValues[1] = dummyFile[currentAddress - 1];
-      fileValues[2] = dummyFile[currentAddress];
-      if (offsetValid(1)) fileValues[3] = dummyFile[currentAddress + 1];
-      if (offsetValid(2)) fileValues[4] = dummyFile[currentAddress + 2];
+      try {
+        switch (currentAddress) {
+          case 0: currentFile.seek(0);
+          break;
+          case 1: currentFile.seek((long) currentAddress - 1);
+          break;
+          default: currentFile.seek((long) currentAddress - 2);
+        }
+
+        for (int i = -2; i <= 2; i++)
+          if (offsetValid(i))
+            fileValues[i + 2] = (char) currentFile.read();
+      }
+      catch (Exception e) {
+        fileValues = new char[] {0, 0, 0, 0, 0};
+      }
     }
   }
 
@@ -194,12 +225,10 @@ public class MyFileMemory extends InstanceFactory {
 
   @Override
   protected void instanceAttributeChanged(Instance instance, Attribute<?> attr) {
-    /*
-    if (attr == StdAttr.APPEARANCE) {
-      instance.recomputeBounds();
-      updatePorts(instance);
+    if (attr == ATTR_FILENAME || attr == LOCATION_TYPE) {
+      // causes call to propagate()
+      instance.fireInvalidated();
     }
-    */
   }
 
 
@@ -211,7 +240,6 @@ public class MyFileMemory extends InstanceFactory {
     final var g = painter.getGraphics();
     final var origFont = g.getFont();
     final var state = (StateData) painter.getData();
-    //final var currentAddr = painter.getPortValue(ADDR).toLongValue();
     GraphicsUtil.switchToWidth(g, 2);
 
     // Label & outer box
@@ -235,28 +263,42 @@ public class MyFileMemory extends InstanceFactory {
     g.drawLine(xpos + 0, ypos + 30, xpos + totalWidth, ypos + 30);
 
     // filename @ address
-    g.setFont(new Font(origFont.getFontName(), Font.PLAIN, 14));
-    GraphicsUtil.drawText(g, "\u00BB " + painter.getAttributeValue(ATTR_FILENAME), xpos + 15, ypos + 40, GraphicsUtil.H_LEFT, GraphicsUtil.V_TOP);
-    GraphicsUtil.drawText(g, "@ 0x" + StringUtil.toHexString(painter.getAttributeValue(ATTR_ADDRWIDTH).getWidth(), state.currentAddress), xpos + 15, ypos + 60, GraphicsUtil.H_LEFT, GraphicsUtil.V_TOP);
+    if (state != null) {
+      g.setFont(new Font(origFont.getFontName(), Font.PLAIN, 14));
+      if (state.currentFile == null) g.setColor(Color.RED);
+      GraphicsUtil.drawText(g, "\u00BB " + state.currentFileName, xpos + 15, ypos + 40, GraphicsUtil.H_LEFT, GraphicsUtil.V_TOP);
+      g.setColor(Color.BLACK);
+      GraphicsUtil.drawText(g, "@ 0x" + StringUtil.toHexString(painter.getAttributeValue(ATTR_ADDRWIDTH).getWidth(), state.currentAddress), xpos + 15, ypos + 60, GraphicsUtil.H_LEFT, GraphicsUtil.V_TOP);
+    }
 
     // Current file snippet
     g.drawRect(xpos + totalWidth / 2 - 25, ypos + 145, 50, 40);
     GraphicsUtil.switchToWidth(g, 1);
     g.drawLine(xpos + 5, ypos + 150, xpos + totalWidth - 5, ypos + 150);
     g.drawLine(xpos + 5, ypos + 180, xpos + totalWidth - 5, ypos + 180);
-    g.setFont(new Font(origFont.getFontName(), Font.BOLD, 18));
-    GraphicsUtil.drawText(g, StringUtil.toHexString(8, state.fileValues[2]), xpos + totalWidth / 2, ypos + 162, GraphicsUtil.H_CENTER, GraphicsUtil.H_CENTER);
-    g.setFont(new Font(origFont.getFontName(), Font.PLAIN, 14));
-    if (state.offsetValid(-2)) GraphicsUtil.drawText(g, StringUtil.toHexString(8, state.fileValues[0]), xpos + totalWidth / 2 - 70, ypos + 162, GraphicsUtil.H_CENTER, GraphicsUtil.H_CENTER);
-    if (state.offsetValid(-1)) GraphicsUtil.drawText(g, StringUtil.toHexString(8, state.fileValues[1]), xpos + totalWidth / 2 - 45, ypos + 162, GraphicsUtil.H_CENTER, GraphicsUtil.H_CENTER);
-    if (state.offsetValid(1))GraphicsUtil.drawText(g, StringUtil.toHexString(8, state.fileValues[3]), xpos + totalWidth / 2 + 45, ypos + 162, GraphicsUtil.H_CENTER, GraphicsUtil.H_CENTER);
-    if (state.offsetValid(2))GraphicsUtil.drawText(g, StringUtil.toHexString(8, state.fileValues[4]), xpos + totalWidth / 2 + 70, ypos + 162, GraphicsUtil.H_CENTER, GraphicsUtil.H_CENTER);
+
+    if (state != null) {
+      g.setFont(new Font(origFont.getFontName(), Font.BOLD, 18));
+      GraphicsUtil.drawText(g, StringUtil.toHexString(8, state.fileValues[2]), xpos + totalWidth / 2, ypos + 162, GraphicsUtil.H_CENTER, GraphicsUtil.H_CENTER);
+      g.setFont(new Font(origFont.getFontName(), Font.PLAIN, 14));
+      if (state.offsetValid(-2))
+        GraphicsUtil.drawText(g, StringUtil.toHexString(8, state.fileValues[0]), xpos + totalWidth / 2 - 70, ypos + 162, GraphicsUtil.H_CENTER, GraphicsUtil.H_CENTER);
+      if (state.offsetValid(-1))
+        GraphicsUtil.drawText(g, StringUtil.toHexString(8, state.fileValues[1]), xpos + totalWidth / 2 - 45, ypos + 162, GraphicsUtil.H_CENTER, GraphicsUtil.H_CENTER);
+      if (state.offsetValid(1))
+        GraphicsUtil.drawText(g, StringUtil.toHexString(8, state.fileValues[3]), xpos + totalWidth / 2 + 45, ypos + 162, GraphicsUtil.H_CENTER, GraphicsUtil.H_CENTER);
+      if (state.offsetValid(2))
+        GraphicsUtil.drawText(g, StringUtil.toHexString(8, state.fileValues[4]), xpos + totalWidth / 2 + 70, ypos + 162, GraphicsUtil.H_CENTER, GraphicsUtil.H_CENTER);
+    }
 
     // Port descriptors
     g.setFont(origFont);
     GraphicsUtil.drawText(g, "ADDR", xpos + addressPortX + 20, ypos + addressPortY, GraphicsUtil.H_LEFT, GraphicsUtil.V_CENTER);
     GraphicsUtil.drawText(g, "CLK", xpos + clockPortX + 20, ypos + clockPortY, GraphicsUtil.H_LEFT, GraphicsUtil.V_CENTER);
     GraphicsUtil.drawText(g, "OUT", xpos + outPortX - 20, ypos + outPortY, GraphicsUtil.H_RIGHT, GraphicsUtil.V_CENTER);
+    g.setColor(Color.GRAY);
+    GraphicsUtil.drawText(g, "RDY", xpos + outPortX - 20, ypos + outPortY + 20, GraphicsUtil.H_RIGHT, GraphicsUtil.V_CENTER);
+    g.setColor(Color.BLACK);
 
     // Ports
     painter.drawPort(OUT);
@@ -294,19 +336,19 @@ public class MyFileMemory extends InstanceFactory {
   public void propagate(InstanceState state) {
     var data = (StateData) state.getData();
     if (data == null) {
-      data = new StateData(0);
+      data = new StateData(state.getAttributeValue(ATTR_FILENAME), (int) state.getPortValue(ADDR).toLongValue());
       state.setData(data);
     }
 
-    final var dataWidth = 8;
-    Object triggerType = state.getAttributeValue(StdAttr.EDGE_TRIGGER);
-    final var triggered = data.updateClock(state.getPortValue(CLK), triggerType);
+    // check trigger on clock pin
+    if (data.updateClock(state.getPortValue(CLK), state.getAttributeValue(StdAttr.EDGE_TRIGGER)))
+      data.updateAddress((int) state.getPortValue(ADDR).toLongValue());
 
-    if (triggered) {
-      data.updateAddress((int)state.getPortValue(ADDR).toLongValue());
-    }
+    // check for changed filename
+    if (!data.currentFilePathString.equals(state.getAttributeValue(ATTR_FILENAME)))
+      data.reset(state.getAttributeValue(ATTR_FILENAME), 0);
 
-    state.setPort(OUT, Value.createKnown(dataWidth, data.fileValues[2]), 1);
+    state.setPort(OUT, Value.createKnown(8, data.fileValues[2]), 1);
   }
 
   @Override
