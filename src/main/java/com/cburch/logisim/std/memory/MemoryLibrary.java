@@ -36,7 +36,6 @@ public class MemoryLibrary extends Library {
     new FactoryDescription(Counter.class, S.getter("counterComponent"), "counter.gif"),
     new FactoryDescription(ShiftRegister.class, S.getter("shiftRegisterComponent"), "shiftreg.gif"),
     new FactoryDescription(Random.class, S.getter("randomComponent"), "random.gif"),
-    new FactoryDescription(MyFileMemory.class, S.getter("fileMemoryComponentName"), "random.gif"),
     new FactoryDescription(Ram.class, S.getter("ramComponent"), "ram.gif"),
     new FactoryDescription(Rom.class, S.getter("romComponent"), "rom.gif"),
   };

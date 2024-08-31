@@ -30,6 +30,8 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 
+import com.knurtz.logisim.memory.MyMemoryLibrary;
+
 public class Builtin extends Library {
   /**
    * Unique identifier of the library, used as reference in project files.
@@ -49,6 +51,7 @@ public class Builtin extends Library {
             new WiringLibrary(),
             new PlexersLibrary(),
             new ArithmeticLibrary(),
+            new MyMemoryLibrary(),
             new MemoryLibrary(),
             new IoLibrary(),
             new TtlLibrary(),

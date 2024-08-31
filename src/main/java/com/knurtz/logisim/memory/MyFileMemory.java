@@ -7,30 +7,23 @@
  * This is free software released under GNU GPLv3 license
  */
 
-package com.cburch.logisim.std.memory;
-
-import static com.cburch.logisim.std.Strings.S;
+package com.knurtz.logisim.memory;
 
 import com.cburch.logisim.data.*;
 import com.cburch.logisim.fpga.designrulecheck.netlistComponent;
 import com.cburch.logisim.gui.icons.RandomIcon;
-import com.cburch.logisim.instance.Instance;
-import com.cburch.logisim.instance.InstanceData;
-import com.cburch.logisim.instance.InstanceFactory;
-import com.cburch.logisim.instance.InstanceLogger;
-import com.cburch.logisim.instance.InstancePainter;
-import com.cburch.logisim.instance.InstanceState;
-import com.cburch.logisim.instance.Port;
-import com.cburch.logisim.instance.StdAttr;
-import com.cburch.logisim.tools.MessageBox;
+import com.cburch.logisim.instance.*;
+import com.cburch.logisim.std.memory.ClockState;
 import com.cburch.logisim.tools.key.BitWidthConfigurator;
 import com.cburch.logisim.util.GraphicsUtil;
-import com.cburch.logisim.util.JDialogOk;
 import com.cburch.logisim.util.StringUtil;
 
 import java.awt.*;
 import java.io.RandomAccessFile;
-import java.nio.file.*;
+import java.nio.file.Path;
+import java.nio.file.Paths;
+
+import static com.knurtz.logisim.KnurtzStrings.S;
 
 public class MyFileMemory extends InstanceFactory {
   /**
